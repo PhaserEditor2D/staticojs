@@ -54,6 +54,11 @@ export class RoutingManager {
 
     findViewFor(pagePath: string) {
 
+        if (pagePath === "") {
+            
+            pagePath = "/"
+        }
+
         for (const rule of this._rules) {
 
             const match = this._cache.get(rule.pattern);

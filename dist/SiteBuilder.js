@@ -49,7 +49,7 @@ class SiteBuilder {
         this._homePage = {
             $name: this._config.title,
             $path: "",
-            $children: [],
+            $pages: [],
             $content: "",
             $summary: "",
             $src: ""
@@ -85,8 +85,8 @@ class SiteBuilder {
         this.generatePage(this._homePage);
     }
     boostPageData(page) {
-        if (page.$children) {
-            for (const child of page.$children) {
+        if (page.$pages) {
+            for (const child of page.$pages) {
                 page["__" + child.$name] = child;
                 this.boostPageData(child);
             }
@@ -105,7 +105,7 @@ class SiteBuilder {
         }
         console.log(`Rendering '${page.$path}' with '${view}'`);
         const output = await (0, ejs_1.renderFile)(templateFile, {
-            page,
+            $page: page,
             site: this._homePage,
         }, {
             views: [this._templatesDir]
@@ -119,7 +119,7 @@ class SiteBuilder {
             });
             (0, copyDir_1.copyDir)(assetsDir, assetsOutDir);
         }
-        for (const child of page.$children) {
+        for (const child of page.$pages) {
             this.generatePage(child);
         }
     }
@@ -149,9 +149,9 @@ class SiteBuilder {
                     $content: "",
                     $summary: "",
                     $src: "",
-                    $children: []
+                    $pages: []
                 };
-                page.$children.push(childPage);
+                page.$pages.push(childPage);
                 this.readPage(childPage);
             }
         }

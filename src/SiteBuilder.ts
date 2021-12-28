@@ -65,7 +65,7 @@ export class SiteBuilder {
         this._homePage = {
             $name: this._config.title,
             $path: "",
-            $children: [],
+            $pages: [],
             $content: "",
             $summary: "",
             $src: ""
@@ -124,9 +124,9 @@ export class SiteBuilder {
 
     private boostPageData(page: IPage) {
 
-        if (page.$children) {
+        if (page.$pages) {
 
-            for (const child of page.$children) {
+            for (const child of page.$pages) {
 
                 (page as any)["__" + child.$name] = child;
 
@@ -158,7 +158,7 @@ export class SiteBuilder {
         console.log(`Rendering '${page.$path}' with '${view}'`);
 
         const output = await renderFile(templateFile, {
-            page,
+            $page: page,
             site: this._homePage,
         },
             {
@@ -180,7 +180,7 @@ export class SiteBuilder {
             copyDir(assetsDir, assetsOutDir);
         }
 
-        for (const child of page.$children) {
+        for (const child of page.$pages) {
 
             this.generatePage(child);
         }
@@ -225,10 +225,10 @@ export class SiteBuilder {
                     $content: "",
                     $summary: "",
                     $src: "",
-                    $children: []
+                    $pages: []
                 };
 
-                page.$children.push(childPage);
+                page.$pages.push(childPage);
 
                 this.readPage(childPage);
             }
