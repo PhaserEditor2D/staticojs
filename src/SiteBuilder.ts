@@ -221,7 +221,7 @@ export class SiteBuilder {
 
                 const childPage: IPage = {
                     $name: childPageDir,
-                    $path: join(page.$path, childPageDir),
+                    $path: page.$path + "/" + childPageDir,
                     $content: "",
                     $summary: "",
                     $src: "",

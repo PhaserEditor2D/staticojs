@@ -145,7 +145,7 @@ class SiteBuilder {
             if ((0, fs_1.statSync)((0, path_1.join)(fullPageDir, childPageDir)).isDirectory()) {
                 const childPage = {
                     $name: childPageDir,
-                    $path: (0, path_1.join)(page.$path, childPageDir),
+                    $path: page.$path + "/" + childPageDir,
                     $content: "",
                     $summary: "",
                     $src: "",
