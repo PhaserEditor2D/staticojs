@@ -1,6 +1,6 @@
 import { parse } from "yaml";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
-import { join } from "path/posix";
+import { join } from "path";
 import Showdown from "showdown";
 import { renderFile } from "ejs";
 import { copyDir } from "./copyDir";
