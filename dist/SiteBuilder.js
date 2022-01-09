@@ -6,7 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.SiteBuilder = void 0;
 const yaml_1 = require("yaml");
 const fs_1 = require("fs");
-const posix_1 = require("path/posix");
+const path_1 = require("path");
 const showdown_1 = __importDefault(require("showdown"));
 const ejs_1 = require("ejs");
 const copyDir_1 = require("./copyDir");
@@ -24,22 +24,22 @@ class SiteBuilder {
         this._mdConverter = new showdown_1.default.Converter({
             metadata: true
         });
-        this._outputDir = (0, posix_1.join)(projectDir, "www");
+        this._outputDir = (0, path_1.join)(projectDir, "www");
         // read config
-        const configFile = (0, posix_1.join)(projectDir, "config.yaml");
+        const configFile = (0, path_1.join)(projectDir, "config.yaml");
         if (!(0, fs_1.existsSync)(configFile)) {
             throw new Error(`Config file '${configFile}' not found.`);
         }
         this._config = (0, yaml_1.parse)((0, fs_1.readFileSync)(configFile, "utf-8"));
-        this._contentRoot = (0, posix_1.join)(projectDir, "content", this._config.language);
+        this._contentRoot = (0, path_1.join)(projectDir, "content", this._config.language);
         if (!(0, fs_1.existsSync)(this._contentRoot)) {
             throw new Error(`Content folder '${this._contentRoot}' not found.`);
         }
-        this._themeDir = (0, posix_1.join)(projectDir, "themes", this._config.theme);
+        this._themeDir = (0, path_1.join)(projectDir, "themes", this._config.theme);
         if (!(0, fs_1.existsSync)(this._themeDir)) {
             throw new Error(`Theme folder '${this._themeDir}' not found.`);
         }
-        this._templatesDir = (0, posix_1.join)(this._themeDir, "templates");
+        this._templatesDir = (0, path_1.join)(this._themeDir, "templates");
         if (!(0, fs_1.existsSync)(this._templatesDir)) {
             throw new Error(`Templates folder '${this._templatesDir}' not found`);
         }
@@ -65,18 +65,18 @@ class SiteBuilder {
         (0, fs_1.rmSync)(this._outputDir, { recursive: true, force: true });
         (0, fs_1.mkdirSync)(this._outputDir, { recursive: true });
         // copy data
-        (0, fs_1.writeFileSync)((0, posix_1.join)(this._outputDir, "data.json"), JSON.stringify(this._homePage, null, 2));
+        (0, fs_1.writeFileSync)((0, path_1.join)(this._outputDir, "data.json"), JSON.stringify(this._homePage, null, 2));
         // add extra data fields
         this.boostPageData(this._homePage);
         // copy static content
-        const staticFolder = (0, posix_1.join)(this._themeDir, "static");
+        const staticFolder = (0, path_1.join)(this._themeDir, "static");
         if ((0, fs_1.existsSync)(staticFolder)) {
             (0, copyDir_1.copyDir)(staticFolder, this._outputDir);
         }
         else {
             console.warn("WARNING: The theme doesn't have a 'static' folder.");
         }
-        const routesFile = (0, posix_1.join)(this._themeDir, "routes.conf");
+        const routesFile = (0, path_1.join)(this._themeDir, "routes.conf");
         if (!(0, fs_1.existsSync)(routesFile)) {
             throw new Error(`Routes file '${routesFile}' not found.`);
         }
@@ -93,13 +93,13 @@ class SiteBuilder {
         }
     }
     async generatePage(page) {
-        const outDir = (0, posix_1.join)("www", page.$path);
+        const outDir = (0, path_1.join)("www", page.$path);
         (0, fs_1.mkdirSync)(outDir, { recursive: true });
         const view = this._routingManager.findViewFor(page.$path);
         if (!view) {
             throw new Error(`New template's view is defined for page '${page.$path}'.`);
         }
-        const templateFile = (0, posix_1.join)(this._templatesDir, view);
+        const templateFile = (0, path_1.join)(this._templatesDir, view);
         if (!(0, fs_1.existsSync)(templateFile)) {
             throw new Error(`Template view '${templateFile}' not found.`);
         }
@@ -110,10 +110,10 @@ class SiteBuilder {
         }, {
             views: [this._templatesDir]
         });
-        (0, fs_1.writeFileSync)((0, posix_1.join)(outDir, "index.html"), output);
-        const assetsDir = (0, posix_1.join)(this._contentRoot, page.$path, "assets");
+        (0, fs_1.writeFileSync)((0, path_1.join)(outDir, "index.html"), output);
+        const assetsDir = (0, path_1.join)(this._contentRoot, page.$path, "assets");
         if ((0, fs_1.existsSync)(assetsDir) && (0, fs_1.statSync)(assetsDir).isDirectory()) {
-            const assetsOutDir = (0, posix_1.join)(outDir, "assets");
+            const assetsOutDir = (0, path_1.join)(outDir, "assets");
             (0, fs_1.mkdirSync)(assetsOutDir, {
                 recursive: true
             });
@@ -125,8 +125,8 @@ class SiteBuilder {
     }
     readPage(page) {
         console.log(`Processing '${page.$path}'`);
-        const fullPageDir = (0, posix_1.join)(this._contentRoot, page.$path);
-        const indexFile = (0, posix_1.join)(fullPageDir, "page.md");
+        const fullPageDir = (0, path_1.join)(this._contentRoot, page.$path);
+        const indexFile = (0, path_1.join)(fullPageDir, "page.md");
         if (!(0, fs_1.existsSync)(indexFile)) {
             throw new Error(`Index file '${indexFile}' not found.`);
         }
@@ -142,10 +142,10 @@ class SiteBuilder {
             if (childPageDir === "assets") {
                 continue;
             }
-            if ((0, fs_1.statSync)((0, posix_1.join)(fullPageDir, childPageDir)).isDirectory()) {
+            if ((0, fs_1.statSync)((0, path_1.join)(fullPageDir, childPageDir)).isDirectory()) {
                 const childPage = {
                     $name: childPageDir,
-                    $path: (0, posix_1.join)(page.$path, childPageDir),
+                    $path: (0, path_1.join)(page.$path, childPageDir),
                     $content: "",
                     $summary: "",
                     $src: "",
