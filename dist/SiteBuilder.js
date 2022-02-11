@@ -35,7 +35,8 @@ class SiteBuilder {
     _contentRoot;
     _mdConverter;
     _outputDir;
-    _homePage;
+    _sitePage;
+    _pathPageMap;
     _themeDir;
     _templatesDir;
     _routingManager;
@@ -65,7 +66,7 @@ class SiteBuilder {
         this._routingManager = new RoutingManager_1.RoutingManager();
     }
     parse() {
-        this._homePage = {
+        this._sitePage = {
             $name: this._config.title,
             $path: "",
             $pages: [],
@@ -73,20 +74,21 @@ class SiteBuilder {
             $summary: "",
             $src: ""
         };
-        this.readPage(this._homePage);
-        return this._homePage;
+        this._pathPageMap = new Map();
+        this.readPage(this._sitePage);
+        return this._sitePage;
     }
     async compile() {
-        if (!this._homePage) {
+        if (!this._sitePage) {
             throw new Error("No data available.");
         }
         // reset www
         (0, fs_1.rmSync)(this._outputDir, { recursive: true, force: true });
         (0, fs_1.mkdirSync)(this._outputDir, { recursive: true });
         // copy data
-        (0, fs_1.writeFileSync)((0, path_1.join)(this._outputDir, "data.json"), JSON.stringify(this._homePage, null, 2));
+        (0, fs_1.writeFileSync)((0, path_1.join)(this._outputDir, "data.json"), JSON.stringify(this._sitePage, null, 2));
         // add extra data fields
-        this.boostPageData(this._homePage);
+        this.buildPageLinks(this._sitePage);
         // copy static content
         const staticFolder = (0, path_1.join)(this._themeDir, "static");
         if ((0, fs_1.existsSync)(staticFolder)) {
@@ -101,13 +103,46 @@ class SiteBuilder {
         }
         this._routingManager.readFromFile(routesFile);
         this._routingManager.compileRules();
-        this.generatePage(this._homePage);
+        this.generatePage(this._sitePage);
     }
-    boostPageData(page) {
+    buildPageLinks(page) {
         if (page.$pages) {
             for (const child of page.$pages) {
                 page["__" + child.$name] = child;
-                this.boostPageData(child);
+                child.$parent = page;
+                this.buildPageLinks(child);
+            }
+        }
+    }
+    deletePageFromPath(path) {
+        const page = this._pathPageMap.get(path);
+        if (!page) {
+            throw new Error(`Page not found at '${path}'`);
+        }
+        if (page.$parent) {
+            page.$parent.$pages = page.$parent.$pages.filter(p => p !== page);
+        }
+        this._pathPageMap.delete(path);
+        (0, fs_1.rmSync)((0, path_1.join)(this._contentRoot, path), { recursive: true, force: true });
+    }
+    findPageAssetsFromPath(path) {
+        let assets = [];
+        this.addPageAssets((0, path_1.join)(this._contentRoot, path, "assets"), assets);
+        assets = assets.map(asset => (0, path_1.relative)((0, path_1.join)(this._contentRoot, path), asset));
+        return assets;
+    }
+    addPageAssets(path, list) {
+        if (!(0, fs_1.existsSync)(path) || !(0, fs_1.statSync)(path).isDirectory()) {
+            return;
+        }
+        const files = (0, fs_1.readdirSync)(path);
+        for (const file of files) {
+            const path2 = (0, path_1.join)(path, file);
+            if ((0, fs_1.statSync)(path2).isDirectory()) {
+                this.addPageAssets(path2, list);
+            }
+            else {
+                list.push(path2);
             }
         }
     }
@@ -125,7 +160,7 @@ class SiteBuilder {
         console.log(`Rendering '${page.$path}' with '${view}'`);
         const output = await (0, ejs_1.renderFile)(templateFile, {
             $page: page,
-            site: this._homePage,
+            site: this._sitePage,
         }, {
             views: [this._templatesDir]
         });
@@ -142,8 +177,40 @@ class SiteBuilder {
             this.generatePage(child);
         }
     }
+    findPageFromPath(path) {
+        return this._pathPageMap.get(path);
+    }
+    createPage(parentPath, name, meta) {
+        console.log(`Creating page at '${parentPath}/${name}'`);
+        const content = "---\n" + (0, yaml_1.stringify)(meta) + "---";
+        console.log(content);
+        const pageFullPath = (0, path_1.join)(this._contentRoot, parentPath, name);
+        (0, fs_1.mkdirSync)(pageFullPath);
+        (0, fs_1.mkdirSync)((0, path_1.join)(pageFullPath, "assets"));
+        (0, fs_1.writeFileSync)((0, path_1.join)(pageFullPath, "page.md"), content, { encoding: "utf8" });
+        const parentPage = this.findPageFromPath(parentPath);
+        if (parentPage) {
+            this.readPage(parentPage);
+            this.buildPageLinks(parentPage);
+        }
+    }
+    savePage(page) {
+        console.log(`Saving '${page.$path}'`);
+        const meta = {};
+        for (const key in page) {
+            if (!key.startsWith("$") && !key.startsWith("__")) {
+                meta[key] = page[key];
+            }
+        }
+        const content = "---\n" + (0, yaml_1.stringify)(meta) + "---" + page.$summary;
+        console.log(content);
+        (0, fs_1.writeFileSync)((0, path_1.join)(this._contentRoot, page.$path, "page.md"), content, { encoding: "utf8" });
+        this.readPage(page);
+        this.buildPageLinks(page);
+    }
     readPage(page) {
         console.log(`Processing '${page.$path}'`);
+        this._pathPageMap.set(page.$path, page);
         const fullPageDir = (0, path_1.join)(this._contentRoot, page.$path);
         const indexFile = (0, path_1.join)(fullPageDir, "page.md");
         if (!(0, fs_1.existsSync)(indexFile)) {
@@ -157,6 +224,7 @@ class SiteBuilder {
         const i = page.$src.lastIndexOf("---");
         page.$summary = page.$src.substring(i + 3, i + 3 + 200);
         // process children
+        page.$pages = [];
         for (const childPageDir of (0, fs_1.readdirSync)(fullPageDir)) {
             if (childPageDir === "assets") {
                 continue;

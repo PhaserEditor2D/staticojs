@@ -1,6 +1,6 @@
-import { parse } from "yaml";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "fs";
-import path, { join } from "path";
+import { parse, stringify } from "yaml";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, statSync, writeFileSync } from "fs";
+import path, { join, relative } from "path";
 import Showdown from "showdown";
 import { renderFile } from "ejs";
 import { copyDir } from "./copyDir";
@@ -12,7 +12,8 @@ export class SiteBuilder {
     private _contentRoot: string;
     private _mdConverter: Showdown.Converter;
     private _outputDir: string;
-    private _homePage?: IPage;
+    private _sitePage?: IPage;
+    private _pathPageMap!: Map<string, IPage>;
     private _themeDir: string;
     private _templatesDir: string;
     private _routingManager: RoutingManager;
@@ -62,7 +63,7 @@ export class SiteBuilder {
 
     parse() {
 
-        this._homePage = {
+        this._sitePage = {
             $name: this._config.title,
             $path: "",
             $pages: [],
@@ -71,14 +72,16 @@ export class SiteBuilder {
             $src: ""
         };
 
-        this.readPage(this._homePage);
+        this._pathPageMap = new Map();
 
-        return this._homePage;
+        this.readPage(this._sitePage);
+
+        return this._sitePage;
     }
 
     async compile() {
 
-        if (!this._homePage) {
+        if (!this._sitePage) {
 
             throw new Error("No data available.");
         }
@@ -90,11 +93,11 @@ export class SiteBuilder {
 
         // copy data
 
-        writeFileSync(join(this._outputDir, "data.json"), JSON.stringify(this._homePage, null, 2));
+        writeFileSync(join(this._outputDir, "data.json"), JSON.stringify(this._sitePage, null, 2));
 
         // add extra data fields
 
-        this.boostPageData(this._homePage);
+        this.buildPageLinks(this._sitePage);
 
         // copy static content
 
@@ -119,10 +122,10 @@ export class SiteBuilder {
         this._routingManager.readFromFile(routesFile);
         this._routingManager.compileRules();
 
-        this.generatePage(this._homePage);
+        this.generatePage(this._sitePage);
     }
 
-    private boostPageData(page: IPage) {
+    buildPageLinks(page: IPage) {
 
         if (page.$pages) {
 
@@ -130,7 +133,63 @@ export class SiteBuilder {
 
                 (page as any)["__" + child.$name] = child;
 
-                this.boostPageData(child);
+                child.$parent = page;
+
+                this.buildPageLinks(child);
+            }
+        }
+    }
+
+    deletePageFromPath(path: string) {
+
+        const page = this._pathPageMap.get(path);
+
+        if (!page) {
+
+            throw new Error(`Page not found at '${path}'`);
+        }
+
+        if (page.$parent) {
+
+            page.$parent.$pages = page.$parent.$pages.filter(p => p !== page);
+        }
+
+        this._pathPageMap.delete(path);
+
+        rmSync(join(this._contentRoot, path), { recursive: true, force: true });
+    }
+
+    findPageAssetsFromPath(path: string) {
+
+        let assets: string[] = [];
+
+        this.addPageAssets(join(this._contentRoot, path, "assets"), assets);
+
+        assets = assets.map(asset => relative(join(this._contentRoot, path), asset));
+
+        return assets;
+    }
+
+    private addPageAssets(path: string, list: string[]) {
+
+        if (!existsSync(path) || !statSync(path).isDirectory()) {
+
+            return;
+        }
+
+        const files = readdirSync(path);
+
+        for (const file of files) {
+
+            const path2 = join(path, file);
+
+            if (statSync(path2).isDirectory()) {
+
+                this.addPageAssets(path2, list);
+
+            } else {
+
+                list.push(path2);
             }
         }
     }
@@ -159,7 +218,7 @@ export class SiteBuilder {
 
         const output = await renderFile(templateFile, {
             $page: page,
-            site: this._homePage,
+            site: this._sitePage,
         },
             {
                 views: [this._templatesDir]
@@ -186,9 +245,64 @@ export class SiteBuilder {
         }
     }
 
-    private readPage(page: IPage) {
+    findPageFromPath(path: string) {
+
+        return this._pathPageMap.get(path);
+    }
+
+    createPage(parentPath: string, name: string, meta: any) {
+
+        console.log(`Creating page at '${parentPath}/${name}'`);
+
+        const content = "---\n" + stringify(meta) + "---";
+
+        console.log(content);
+
+        const pageFullPath = join(this._contentRoot, parentPath, name);
+
+        mkdirSync(pageFullPath);
+        mkdirSync(join(pageFullPath, "assets"));
+
+        writeFileSync(join(pageFullPath, "page.md"), content, { encoding: "utf8" });
+
+        const parentPage = this.findPageFromPath(parentPath);
+
+        if (parentPage) {
+
+            this.readPage(parentPage);
+            this.buildPageLinks(parentPage);
+        }
+    }
+
+    savePage(page: IPage) {
+
+        console.log(`Saving '${page.$path}'`);
+
+        const meta: any = {};
+
+        for (const key in page) {
+
+            if (!key.startsWith("$") && !key.startsWith("__")) {
+
+                meta[key] = (page as any)[key];
+            }
+        }
+
+        const content = "---\n" + stringify(meta) + "---" + page.$summary;
+
+        console.log(content);
+
+        writeFileSync(join(this._contentRoot, page.$path, "page.md"), content, { encoding: "utf8" });
+
+        this.readPage(page);
+        this.buildPageLinks(page);
+    }
+
+    readPage(page: IPage) {
 
         console.log(`Processing '${page.$path}'`);
+
+        this._pathPageMap.set(page.$path, page);
 
         const fullPageDir = join(this._contentRoot, page.$path);
         const indexFile = join(fullPageDir, "page.md");
@@ -209,6 +323,8 @@ export class SiteBuilder {
         page.$summary = page.$src.substring(i + 3, i + 3 + 200);
 
         // process children
+
+        page.$pages = [];
 
         for (const childPageDir of readdirSync(fullPageDir)) {
 

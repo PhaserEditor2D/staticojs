@@ -3,14 +3,21 @@ export declare class SiteBuilder {
     private _contentRoot;
     private _mdConverter;
     private _outputDir;
-    private _homePage?;
+    private _sitePage?;
+    private _pathPageMap;
     private _themeDir;
     private _templatesDir;
     private _routingManager;
     constructor(projectDir: string);
     parse(): IPage;
     compile(): Promise<void>;
-    private boostPageData;
+    buildPageLinks(page: IPage): void;
+    deletePageFromPath(path: string): void;
+    findPageAssetsFromPath(path: string): string[];
+    private addPageAssets;
     private generatePage;
-    private readPage;
+    findPageFromPath(path: string): IPage | undefined;
+    createPage(parentPath: string, name: string, meta: any): void;
+    savePage(page: IPage): void;
+    readPage(page: IPage): void;
 }

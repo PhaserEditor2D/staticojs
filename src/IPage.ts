@@ -5,5 +5,6 @@ interface IPage {
     $content: string;
     $summary: string;
     $pages: IPage[];
-    $view?: string
+    $parent?: IPage;
+    $view?: string;
 }
