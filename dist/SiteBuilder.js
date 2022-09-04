@@ -68,6 +68,7 @@ class SiteBuilder {
         this._homePage = {
             $name: this._config.title,
             $path: "",
+            $rootPath: ".",
             $pages: [],
             $content: "",
             $summary: "",
@@ -165,6 +166,7 @@ class SiteBuilder {
                 const childPage = {
                     $name: childPageDir,
                     $path: path_1.default.posix.join(page.$path, childPageDir),
+                    $rootPath: path_1.default.posix.join(page.$rootPath, ".."),
                     $content: "",
                     $summary: "",
                     $src: "",

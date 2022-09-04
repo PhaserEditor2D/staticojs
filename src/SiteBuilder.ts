@@ -65,6 +65,7 @@ export class SiteBuilder {
         this._homePage = {
             $name: this._config.title,
             $path: "",
+            $rootPath: ".",
             $pages: [],
             $content: "",
             $summary: "",
@@ -222,6 +223,7 @@ export class SiteBuilder {
                 const childPage: IPage = {
                     $name: childPageDir,
                     $path: path.posix.join(page.$path, childPageDir),
+                    $rootPath: path.posix.join(page.$rootPath, ".."),
                     $content: "",
                     $summary: "",
                     $src: "",
