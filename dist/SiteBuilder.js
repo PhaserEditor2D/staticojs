@@ -176,7 +176,6 @@ class SiteBuilder {
                     $pages: []
                 };
                 this.readPage(childPage);
-                console.log(childPage);
                 if (childPage.$enabled) {
                     page.$pages.push(childPage);
                 }
