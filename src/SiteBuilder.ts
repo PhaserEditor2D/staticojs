@@ -236,8 +236,6 @@ export class SiteBuilder {
 
                 this.readPage(childPage);
 
-                console.log(childPage);
-
                 if (childPage.$enabled) {
 
                     page.$pages.push(childPage);
