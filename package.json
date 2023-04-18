@@ -1,6 +1,6 @@
 {
 	"name": "staticojs",
-	"version": "1.0.6",
+	"version": "1.0.7",
 	"description": "Another static site generator. Made with JavaScript.",
 	"main": "dist/index.js",
 	"scripts": {
