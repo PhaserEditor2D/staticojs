@@ -7,4 +7,5 @@ interface IPage {
     $summary: string;
     $pages: IPage[];
     $view?: string;
+    $enabled: boolean;
 }

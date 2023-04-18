@@ -69,7 +69,8 @@ export class SiteBuilder {
             $pages: [],
             $content: "",
             $summary: "",
-            $src: ""
+            $src: "",
+            $enabled: true
         };
 
         this.readPage(this._homePage);
@@ -204,7 +205,9 @@ export class SiteBuilder {
 
         const metadataSrc = this._mdConverter.getMetadata(true) as string;
         const metadata = parse(metadataSrc as string) || {};
+        metadata.$enabled = metadata.enabled === undefined || metadata.enabled;
         Object.assign(page, metadata);
+        
 
         const i = page.$src.lastIndexOf("---");
         page.$summary = page.$src.substring(i + 3, i + 3 + 200);
@@ -227,12 +230,22 @@ export class SiteBuilder {
                     $content: "",
                     $summary: "",
                     $src: "",
+                    $enabled: true,
                     $pages: []
                 };
 
-                page.$pages.push(childPage);
-
                 this.readPage(childPage);
+
+                console.log(childPage);
+
+                if (childPage.$enabled) {
+
+                    page.$pages.push(childPage);
+
+                } else {
+
+                    console.log(`Disable page '${childPage.$path}'`);
+                }
             }
         }
     }

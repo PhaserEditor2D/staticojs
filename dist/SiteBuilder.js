@@ -72,7 +72,8 @@ class SiteBuilder {
             $pages: [],
             $content: "",
             $summary: "",
-            $src: ""
+            $src: "",
+            $enabled: true
         };
         this.readPage(this._homePage);
         return this._homePage;
@@ -154,6 +155,7 @@ class SiteBuilder {
         page.$content = this._mdConverter.makeHtml(page.$src);
         const metadataSrc = this._mdConverter.getMetadata(true);
         const metadata = (0, yaml_1.parse)(metadataSrc) || {};
+        metadata.$enabled = metadata.enabled === undefined || metadata.enabled;
         Object.assign(page, metadata);
         const i = page.$src.lastIndexOf("---");
         page.$summary = page.$src.substring(i + 3, i + 3 + 200);
@@ -170,10 +172,17 @@ class SiteBuilder {
                     $content: "",
                     $summary: "",
                     $src: "",
+                    $enabled: true,
                     $pages: []
                 };
-                page.$pages.push(childPage);
                 this.readPage(childPage);
+                console.log(childPage);
+                if (childPage.$enabled) {
+                    page.$pages.push(childPage);
+                }
+                else {
+                    console.log(`Disable page '${childPage.$path}'`);
+                }
             }
         }
     }
