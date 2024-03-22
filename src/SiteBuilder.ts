@@ -6,22 +6,31 @@ import { renderFile } from "ejs";
 import { copyDir } from "./copyDir";
 import { RoutingManager } from "./RoutingManager";
 
+export interface IContentInfo {
+    lang: string;
+    fullPath: string;
+    homePage: IPage;
+}
+
+
 export class SiteBuilder {
 
     private _config: IConfig;
     private _contentRoot: string;
     private _mdConverter: Showdown.Converter;
     private _outputDir: string;
-    private _homePage?: IPage;
+    private _contents: IContentInfo[];
     private _themeDir: string;
     private _templatesDir: string;
-    private _routingManager: RoutingManager;
+    private _routingManager!: RoutingManager;
 
     constructor(projectDir: string) {
 
         this._mdConverter = new Showdown.Converter({
             metadata: true
         });
+
+        this._contents = [];
 
         this._outputDir = join(projectDir, "www");
 
@@ -36,7 +45,7 @@ export class SiteBuilder {
 
         this._config = parse(readFileSync(configFile, "utf-8")) as IConfig;
 
-        this._contentRoot = join(projectDir, "content", this._config.language);
+        this._contentRoot = join(projectDir, "content");
 
         if (!existsSync(this._contentRoot)) {
 
@@ -56,60 +65,47 @@ export class SiteBuilder {
 
             throw new Error(`Templates folder '${this._templatesDir}' not found`);
         }
-
-        this._routingManager = new RoutingManager();
     }
 
     parse() {
 
-        this._homePage = {
-            $name: this._config.title,
-            $path: "",
-            $rootPath: ".",
-            $pages: [],
-            $content: "",
-            $summary: "",
-            $src: "",
-            $enabled: true
-        };
+        for (const langDir of readdirSync(this._contentRoot)) {
 
-        this.readPage(this._homePage);
+            if (langDir.startsWith(".")) {
 
-        return this._homePage;
+                continue;
+            }
+
+            const contentInfo: IContentInfo = {
+                lang: langDir,
+                fullPath: path.join(this._contentRoot, langDir),
+                homePage: {
+                    $name: "",
+                    $path: "",
+                    $rootPath: ".",
+                    $pages: [],
+                    $content: "",
+                    $summary: "",
+                    $src: "",
+                    $enabled: true
+                },
+            };
+
+            this._contents.push(contentInfo);
+
+            console.log("Processing lang '" + langDir + "'");
+
+            this.readPage(contentInfo, contentInfo.homePage);
+        }
+
+        return this._contents;
     }
 
     async compile() {
 
-        if (!this._homePage) {
+        console.log("\nCompiling...\n")
 
-            throw new Error("No data available.");
-        }
-
-        // reset www
-
-        rmSync(this._outputDir, { recursive: true, force: true });
-        mkdirSync(this._outputDir, { recursive: true });
-
-        // copy data
-
-        writeFileSync(join(this._outputDir, "data.json"), JSON.stringify(this._homePage, null, 2));
-
-        // add extra data fields
-
-        this.boostPageData(this._homePage);
-
-        // copy static content
-
-        const staticFolder = join(this._themeDir, "static");
-
-        if (existsSync(staticFolder)) {
-
-            copyDir(staticFolder, this._outputDir);
-
-        } else {
-
-            console.warn("WARNING: The theme doesn't have a 'static' folder.");
-        }
+        // reset www 
 
         const routesFile = join(this._themeDir, "routes.conf");
 
@@ -118,10 +114,43 @@ export class SiteBuilder {
             throw new Error(`Routes file '${routesFile}' not found.`);
         }
 
+        this._routingManager = new RoutingManager();
         this._routingManager.readFromFile(routesFile);
         this._routingManager.compileRules();
 
-        this.generatePage(this._homePage);
+        for (const contentInfo of this._contents) {
+
+            console.log("\nWriting language '" + contentInfo.lang + "'\n");
+
+            const outputDir = join(this._outputDir, contentInfo.lang);
+
+            mkdirSync(outputDir, { recursive: true });
+
+            // copy data
+
+            writeFileSync(join(outputDir, "data.json"), JSON.stringify(contentInfo.homePage, null, 2));
+
+            // add extra data fields
+
+            this.boostPageData(contentInfo.homePage);
+
+            // copy static content
+
+            const staticFolder = join(this._themeDir, "static");
+
+            if (existsSync(staticFolder)) {
+
+                copyDir(staticFolder, outputDir);
+
+            } else {
+
+                console.warn("WARNING: The theme doesn't have a 'static' folder.");
+            }
+
+            await this.generatePage(contentInfo, contentInfo.homePage);
+        }
+
+        console.log("\nCompilation completed!\n")
     }
 
     private boostPageData(page: IPage) {
@@ -137,9 +166,9 @@ export class SiteBuilder {
         }
     }
 
-    private async generatePage(page: IPage) {
+    private async generatePage(contentInfo: IContentInfo, page: IPage) {
 
-        const outDir = join("www", page.$path);
+        const outDir = join("www", contentInfo.lang, page.$path);
 
         mkdirSync(outDir, { recursive: true });
 
@@ -157,11 +186,11 @@ export class SiteBuilder {
             throw new Error(`Template view '${templateFile}' not found.`);
         }
 
-        console.log(`Rendering '${page.$path}' with '${view}'`);
+        console.log(`Rendering '${contentInfo.lang}/${page.$path}' with '${view}'`);
 
         const output = await renderFile(templateFile, {
             $page: page,
-            site: this._homePage,
+            site: contentInfo.homePage,
         },
             {
                 views: [this._templatesDir]
@@ -169,7 +198,7 @@ export class SiteBuilder {
 
         writeFileSync(join(outDir, "index.html"), output);
 
-        const assetsDir = join(this._contentRoot, page.$path, "assets");
+        const assetsDir = join(contentInfo.fullPath, page.$path, "assets");
 
         if (existsSync(assetsDir) && statSync(assetsDir).isDirectory()) {
 
@@ -184,15 +213,16 @@ export class SiteBuilder {
 
         for (const child of page.$pages) {
 
-            this.generatePage(child);
+            this.generatePage(contentInfo, child);
         }
     }
 
-    private readPage(page: IPage) {
+    private readPage(contentInfo: IContentInfo, page: IPage) {
 
         console.log(`Processing '${page.$path}'`);
 
-        const fullPageDir = join(this._contentRoot, page.$path);
+        const fullPageDir = join(contentInfo.fullPath, page.$path);
+
         const indexFile = join(fullPageDir, "page.md");
 
         if (!existsSync(indexFile)) {
@@ -207,7 +237,7 @@ export class SiteBuilder {
         const metadata = parse(metadataSrc as string) || {};
         metadata.$enabled = metadata.enabled === undefined || metadata.enabled;
         Object.assign(page, metadata);
-        
+
 
         const i = page.$src.lastIndexOf("---");
         page.$summary = page.$src.substring(i + 3, i + 3 + 200);
@@ -234,7 +264,7 @@ export class SiteBuilder {
                     $pages: []
                 };
 
-                this.readPage(childPage);
+                this.readPage(contentInfo, childPage);
 
                 if (childPage.$enabled) {
 
